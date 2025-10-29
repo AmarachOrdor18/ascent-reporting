@@ -3,10 +3,12 @@ import { getSupabaseClient } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> } // ✅ Next.js expects a Promise
 ) {
+  const resolvedParams = await context.params; // unwrap the Promise
+  const datasetId = resolvedParams.id;
+
   try {
-    const datasetId = params.id;
     const supabase = getSupabaseClient();
 
     // Get dataset info
@@ -17,10 +19,7 @@ export async function GET(
       .single();
 
     if (dsError || !dataset) {
-      return NextResponse.json(
-        { error: 'Dataset not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Dataset not found' }, { status: 404 });
     }
 
     // Get associated views
@@ -30,13 +29,10 @@ export async function GET(
       .eq('dataset_id', datasetId)
       .eq('is_active', true);
 
-    if (viewsError) {
-      throw viewsError;
-    }
+    if (viewsError) throw viewsError;
 
-    // Query the QRY02 view (wrapper view for reporting)
     const qry02View = views?.find(v => v.view_name.endsWith('_QRY02'));
-    
+
     if (!qry02View) {
       return NextResponse.json(
         { error: 'No query view found for this dataset' },
@@ -45,14 +41,11 @@ export async function GET(
     }
 
     // Execute query using RPC
-    const { data: reportData, error: queryError } = await supabase
-      .rpc('query_view', {
-        view_name: qry02View.view_name
-      });
+    const { data: reportData, error: queryError } = await supabase.rpc('query_view', {
+      view_name: qry02View.view_name
+    });
 
-    if (queryError) {
-      throw queryError;
-    }
+    if (queryError) throw queryError;
 
     return NextResponse.json({
       dataset,
