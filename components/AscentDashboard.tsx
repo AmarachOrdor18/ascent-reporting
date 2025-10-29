@@ -15,9 +15,9 @@ export default function AscentDashboard() {
   }, []);
 
   const [activeView, setActiveView] = useState('datasources');
-  const [dataSources, setDataSources] = useState([]);
-  const [dataSets, setDataSets] = useState([]);
-  const [cycles, setCycles] = useState([]);
+  const [dataSources, setDataSources] = useState<any[]>([]);
+  const [dataSets, setDataSets] = useState<any[]>([]);
+  const [cycles, setCycles] = useState<any[]>([]);
   const [stats, setStats] = useState({
     dataSources: 0,
     dataSets: 0,

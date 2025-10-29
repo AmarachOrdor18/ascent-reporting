@@ -1,12 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/lib/db';
 
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    // ✅ Await params since it's now a Promise in Next.js 16
+    const { id } = await context.params;
     const { datasourceName } = await request.json();
+
     const supabase = getSupabaseClient();
 
     // Get update type
@@ -17,10 +20,7 @@ export async function POST(
       .single();
 
     if (dsError || !dsData) {
-      return NextResponse.json(
-        { error: 'Data source not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Data source not found' }, { status: 404 });
     }
 
     const updateType = dsData.datasource_update_type;
@@ -31,9 +31,7 @@ export async function POST(
       p_update_type: updateType
     });
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     const rowsAffected = data || 0;
 
@@ -58,9 +56,6 @@ export async function POST(
     });
   } catch (error: any) {
     console.error('Admit error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Admit failed' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message || 'Admit failed' }, { status: 500 });
   }
 }
