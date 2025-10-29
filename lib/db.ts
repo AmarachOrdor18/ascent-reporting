@@ -107,32 +107,31 @@ export async function batchInsertWithProgress(
   columns: string[],
   rows: any[][],
   onProgress?: (progress: number, current: number, total: number) => void,
-  batchSize: number = 1000
+  batchSize: number = 5000
 ) {
-  const client = getSupabaseClient();
+  const client = await getSupabaseClient();
   let totalInserted = 0;
   const total = rows.length;
 
   try {
+    await client.rpc('BEGIN');
+
     for (let i = 0; i < rows.length; i += batchSize) {
       const batch = rows.slice(i, i + batchSize);
-      
-      // Convert rows array to objects
-      const records = batch.map(row => {
-        const record: any = {};
-        columns.forEach((col, idx) => {
-          record[col] = row[idx];
-        });
-        return record;
+      const values: string[] = [];
+      const params: any[] = [];
+      let paramIndex = 1;
+
+      batch.forEach((row) => {
+        const rowPlaceholders = row.map(() => `$${paramIndex++}`).join(', ');
+        values.push(`(${rowPlaceholders})`);
+        params.push(...row);
       });
 
-      const { error } = await client.from(tableName).insert(records);
-
-      if (error) {
-        throw error;
-      }
-
+      const sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES ${values.join(', ')}`;
+      await client.rpc(sql, params);
       totalInserted += batch.length;
+
       const progress = Math.floor((totalInserted / total) * 100);
       
       console.log(`Progress: ${progress}% (${totalInserted}/${total} rows)`);
@@ -142,9 +141,10 @@ export async function batchInsertWithProgress(
       }
     }
 
+    await client.rpc('COMMIT');
     return totalInserted;
   } catch (error) {
-    console.error('Batch insert with progress error:', error);
+    await client.rpc('ROLLBACK');
     throw error;
-  }
+  } 
 }
