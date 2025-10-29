@@ -5,6 +5,8 @@ import { Upload, Download, FileSpreadsheet, RefreshCw, Plus, LogOut } from 'luci
 import CreateDataSourceModal from './CreateDataSourceModal';
 import UploadModal from './UploadModal';
 import CreateCycleModal from './CreateCycleModal';
+import ReportViewerModal from './ReportViewerModal';
+
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function AscentDashboard() {
@@ -31,6 +33,8 @@ export default function AscentDashboard() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showCreateCycleModal, setShowCreateCycleModal] = useState(false);
   const [selectedDataSource, setSelectedDataSource] = useState('');
+  const [showReportViewer, setShowReportViewer] = useState(false);
+  const [selectedDataset, setSelectedDataset] = useState<any>(null);
 
   // Fetch data on mount and when view changes
   useEffect(() => {

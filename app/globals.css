@@ -1,26 +1,75 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Custom properties for body styling */
+  --color-body: #fff;
+  --text-body: #1E2238;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Custom utility classes */
+.bg-body {
+  background-color: var(--color-body-bg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.text-body {
+  color: var(--color-body-text);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.font-body {
+  font-family: var(--font-family-body);
+}
+
+.font-heading {
+  font-family: var(--font-family-heading);
+}
+
+/* Custom keyframes for animations */
+@keyframes movingLeft {
+  0% { transform: translateX(0px); }
+  50% { transform: translateX(-700px); }
+  100% { transform: translateX(0px); }
+}
+
+@keyframes movingRight {
+  0% { transform: translateX(0px); }
+  50% { transform: translateX(700px); }
+  100% { transform: translateX(0px); }
+}
+
+@keyframes pulseText {
+  0% { color: #041109; }
+  25% { color: #E3E8E5; }
+  70% { color: #E3E8E5; }
+  100% { color: #041109; }
+}
+
+@keyframes pulseTextDark {
+  0% { color: #19251D; }
+  25% { color: #FFF; }
+  70% { color: #FFF; }
+  100% { color: #19251D; }
+}
+
+@keyframes pulseTextGreen {
+  0% { color: #2B4F36; }
+  25% { color: #FFF; }
+  70% { color: #FFF; }
+  100% { color: #2B4F36; }
+}
+
+@keyframes showLine {
+  0% { width: 200px; }
+  25% { width: 600px; }
+  50% { width: 600px; }
+  100% { width: 200px; }
+}
+
+@keyframes showSearchInput {
+  0% { width: 0px; }
+  100% { width: 180px; }
+}
+
+@keyframes animFill {
+  0% { width: 0px; }
+  100% { width: 100%; }
 }
