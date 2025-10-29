@@ -1,28 +1,24 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params;
     const { cycleReferenceId, datasourceNames } = await request.json();
 
     // Close cycle and move data to history
-    await query(
-      `SELECT close_cycle($1, $2)`,
-      [cycleReferenceId, datasourceNames]
-    );
+    await query(`SELECT close_cycle($1, $2)`, [cycleReferenceId, datasourceNames]);
 
     return NextResponse.json({
       success: true,
-      message: 'Cycle closed successfully'
+      message: `Cycle ${id} closed successfully`
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error closing cycle:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to close cycle' },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : 'Failed to close cycle';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
