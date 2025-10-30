@@ -13,7 +13,7 @@ export const authConfig = {
 
       if (isOnDashboard) {
         if (isLoggedIn) return true;
-        return false; // Redirect unauthenticated users to login page
+        return false;
       } else if (isLoggedIn && isOnLogin) {
         return Response.redirect(new URL('/', nextUrl));
       }
@@ -22,8 +22,14 @@ export const authConfig = {
   },
   providers: [
     Credentials({
+      name: 'Credentials',
+      credentials: {
+        username: { label: 'Username', type: 'text', placeholder: 'admin' },
+        password: { label: 'Password', type: 'password', placeholder: 'admin123' },
+      },
       async authorize(credentials) {
-        // Add your authentication logic here
+        console.log('Received credentials:', credentials); // 👈 debug line
+
         if (
           credentials?.username === 'admin' &&
           credentials?.password === 'admin123'
