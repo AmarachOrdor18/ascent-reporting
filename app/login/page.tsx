@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogIn } from 'lucide-react';
+import { signIn } from 'next-auth/react'; // ✅ import this
 
 export default function LoginPage() {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
@@ -16,13 +17,13 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/callback/credentials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials),
+      const result = await signIn('credentials', {
+        redirect: false, // we’ll handle redirection manually
+        username: credentials.username,
+        password: credentials.password,
       });
 
-      if (response.ok) {
+      if (result?.ok) {
         router.push('/');
         router.refresh();
       } else {
@@ -38,13 +39,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-md p-8">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-blue-900 mb-2">ASCENT</h1>
           <p className="text-gray-600">Reinsurance Reporting Platform</p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
             <div className="p-4 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
@@ -86,7 +85,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Demo credentials */}
         <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded text-xs text-gray-600 text-center">
           <strong>Demo Credentials:</strong>
           <br /> Username: admin | Password: admin123
