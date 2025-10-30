@@ -28,7 +28,7 @@ export const authConfig = {
         password: { label: 'Password', type: 'password', placeholder: 'admin123' },
       },
       async authorize(credentials) {
-        console.log('Received credentials:', credentials); // 👈 debug line
+        console.log('Received credentials:', credentials); // debug line
 
         if (
           credentials?.username === 'admin' &&
