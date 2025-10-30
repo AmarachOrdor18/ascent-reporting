@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { getTable } from '@/lib/db';  // ✅ use the helper that returns the Supabase table
 
+// ===============================
+// GET: Fetch all datasets
+// ===============================
 export async function GET() {
   try {
-    const result = await query(
-      `SELECT 
-        dataset_id,
-        dataset_name,
-        dataset_description,
-        dataset_updated_at
-      FROM data_sets 
-      ORDER BY dataset_updated_at DESC`
-    );
-    return NextResponse.json(result.rows);
+    const { data, error } = await getTable('data_sets')
+      .select('dataset_id, dataset_name, dataset_description, dataset_updated_at')
+      .order('dataset_updated_at', { ascending: false });
+
+    if (error) throw error;
+
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching datasets:', error);
     return NextResponse.json(
@@ -22,19 +22,22 @@ export async function GET() {
   }
 }
 
+// ===============================
+// POST: Insert a new dataset
+// ===============================
 export async function POST(request: Request) {
   try {
     const { dataset_id, dataset_name, dataset_description } = await request.json();
 
-    await query(
-      `INSERT INTO data_sets (dataset_id, dataset_name, dataset_description)
-       VALUES ($1, $2, $3)`,
-      [dataset_id, dataset_name, dataset_description]
-    );
+    const { error } = await getTable('data_sets').insert([
+      { dataset_id, dataset_name, dataset_description },
+    ]);
+
+    if (error) throw error;
 
     return NextResponse.json({
       success: true,
-      message: 'Dataset created successfully'
+      message: 'Dataset created successfully',
     });
   } catch (error: any) {
     console.error('Error creating dataset:', error);

@@ -1,12 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
-
-interface Column {
-  name: string;
-  type: string;
-}
+import { X, Info, AlertCircle } from 'lucide-react';
 
 interface CreateDataSourceModalProps {
   isOpen: boolean;
@@ -20,46 +15,22 @@ export default function CreateDataSourceModal({
   onSuccess,
 }: CreateDataSourceModalProps) {
   const [formData, setFormData] = useState({
-    datasource_id: '',
     datasource_name: '',
     datasource_description: '',
     datasource_update_type: 'REPLACE',
   });
-  const [columns, setColumns] = useState<Column[]>([
-    { name: '', type: 'VARCHAR(255)' },
-  ]);
+  const [sqlQuery, setSqlQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const dataTypes = [
-    'VARCHAR(255)',
-    'VARCHAR(500)',
-    'VARCHAR(1000)',
-    'TEXT',
-    'INT',
-    'BIGINT',
-    'DECIMAL(18,2)',
-    'DECIMAL(18,4)',
-    'DATE',
-    'TIMESTAMP',
-    'BOOLEAN',
-  ];
-
-  const addColumn = () => {
-    setColumns([...columns, { name: '', type: 'VARCHAR(255)' }]);
-  };
-
-  const removeColumn = (index: number) => {
-    if (columns.length > 1) {
-      setColumns(columns.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateColumn = (index: number, field: 'name' | 'type', value: string) => {
-    const updated = [...columns];
-    updated[index][field] = value;
-    setColumns(updated);
-  };
+  // Example template
+  const exampleQuery = `CREATE TABLE example_table (
+    policy_number VARCHAR(100),
+    insured_name VARCHAR(255),
+    premium_amount DECIMAL(18,2),
+    effective_date DATE,
+    status VARCHAR(50)
+);`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,11 +42,14 @@ export default function CreateDataSourceModal({
       return;
     }
 
-    const invalidColumns = columns.filter(
-      (col) => !col.name.trim() || !col.type.trim()
-    );
-    if (invalidColumns.length > 0) {
-      setError('All columns must have a name and type');
+    if (!sqlQuery.trim()) {
+      setError('SQL CREATE TABLE query is required');
+      return;
+    }
+
+    // Validate SQL starts with CREATE TABLE
+    if (!sqlQuery.trim().toUpperCase().startsWith('CREATE TABLE')) {
+      setError('Query must start with CREATE TABLE');
       return;
     }
 
@@ -87,11 +61,7 @@ export default function CreateDataSourceModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          datasource_id: parseInt(formData.datasource_id),
-          columns: columns.map((col) => ({
-            name: col.name.trim().toLowerCase().replace(/\s+/g, '_'),
-            type: col.type,
-          })),
+          sql_query: sqlQuery,
         }),
       });
 
@@ -113,13 +83,16 @@ export default function CreateDataSourceModal({
 
   const resetForm = () => {
     setFormData({
-      datasource_id: '',
       datasource_name: '',
       datasource_description: '',
       datasource_update_type: 'REPLACE',
     });
-    setColumns([{ name: '', type: 'VARCHAR(255)' }]);
+    setSqlQuery('');
     setError('');
+  };
+
+  const loadExample = () => {
+    setSqlQuery(exampleQuery);
   };
 
   if (!isOpen) return null;
@@ -129,7 +102,12 @@ export default function CreateDataSourceModal({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">Create Data Source</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Create Data Source</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Define table structure using SQL CREATE TABLE syntax
+            </p>
+          </div>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
@@ -142,29 +120,14 @@ export default function CreateDataSourceModal({
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
           {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-700">
-              {error}
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded flex items-start gap-3">
+              <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
+              <div className="text-red-700 text-sm">{error}</div>
             </div>
           )}
 
           {/* Basic Info */}
           <div className="space-y-4 mb-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Datasource ID *
-              </label>
-              <input
-                type="number"
-                required
-                value={formData.datasource_id}
-                onChange={(e) =>
-                  setFormData({ ...formData, datasource_id: e.target.value })
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="e.g., 443148624"
-              />
-            </div>
-
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Datasource Name * (must start with DS_)
@@ -182,6 +145,9 @@ export default function CreateDataSourceModal({
                 className="w-full px-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="e.g., DS_EXPOSURE"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                This will be the prefix for your RAW, ACTIVE, and HIST tables
+              </p>
             </div>
 
             <div>
@@ -197,8 +163,8 @@ export default function CreateDataSourceModal({
                   })
                 }
                 className="w-full px-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows={3}
-                placeholder="Describe the purpose of this data source"
+                rows={2}
+                placeholder="Brief description of this data source"
               />
             </div>
 
@@ -216,69 +182,51 @@ export default function CreateDataSourceModal({
                 }
                 className="w-full px-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="REPLACE">REPLACE (Clear and replace all data)</option>
-                <option value="APPEND">APPEND (Add new data)</option>
+                <option value="REPLACE">REPLACE - Clear and replace all data on admit</option>
+                <option value="APPEND">APPEND - Add new data on admit</option>
               </select>
             </div>
           </div>
 
-          {/* Columns */}
+          {/* SQL Query Editor */}
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-semibold text-gray-700">
-                Table Columns *
+                SQL CREATE TABLE Query *
               </label>
               <button
                 type="button"
-                onClick={addColumn}
-                className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                onClick={loadExample}
+                className="text-xs text-blue-600 hover:text-blue-700"
               >
-                <Plus size={16} />
-                Add Column
+                Load Example
               </button>
             </div>
+            <textarea
+              required
+              value={sqlQuery}
+              onChange={(e) => setSqlQuery(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+              rows={12}
+              placeholder={exampleQuery}
+            />
+          </div>
 
-            <div className="space-y-3">
-              {columns.map((column, index) => (
-                <div key={index} className="flex gap-3 items-start">
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      required
-                      value={column.name}
-                      onChange={(e) => updateColumn(index, 'name', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Column name (e.g., policy_number)"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <select
-                      value={column.type}
-                      onChange={(e) => updateColumn(index, 'type', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      {dataTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeColumn(index)}
-                    disabled={columns.length === 1}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                </div>
-              ))}
+          {/* Important Notes */}
+          <div className="mt-4 bg-blue-50 border border-blue-200 rounded p-4">
+            <div className="flex items-start gap-3">
+              <Info className="text-blue-600 flex-shrink-0" size={20} />
+              <div className="text-sm text-blue-900">
+                <p className="font-semibold mb-2">Important Notes:</p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>Only define your business columns - system columns (id, upload_id, uploaded_at, uploaded_by) will be added automatically</li>
+                  <li>The table name in your query will be ignored - we'll use your datasource name</li>
+                  <li>Upload files must be named exactly as the datasource (e.g., DS_EXPOSURE.csv)</li>
+                  <li>Three tables will be created: DS_NAME_RAW, DS_NAME_ACTIVE, DS_NAME_HIST</li>
+                  <li>Supported data types: VARCHAR(n), TEXT, INT, BIGINT, DECIMAL(p,s), DATE, TIMESTAMP, BOOLEAN</li>
+                </ul>
+              </div>
             </div>
-
-            <p className="mt-3 text-sm text-gray-600">
-              Note: System will automatically add: id, upload_id, uploaded_at, uploaded_by
-            </p>
           </div>
         </form>
 
@@ -293,7 +241,7 @@ export default function CreateDataSourceModal({
             Cancel
           </button>
           <button
-            onClick={handleSubmit}
+            type="submit"
             disabled={loading}
             className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
           >

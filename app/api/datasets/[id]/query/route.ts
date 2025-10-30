@@ -42,7 +42,7 @@ export async function GET(
 
     // Execute query using RPC
     const { data: reportData, error: queryError } = await supabase.rpc('query_view', {
-      view_name: qry02View.view_name
+      view_name: qry02View.view_name.toLowerCase()
     });
 
     if (queryError) throw queryError;

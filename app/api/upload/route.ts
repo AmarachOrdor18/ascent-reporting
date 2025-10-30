@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient, batchInsert } from '@/lib/db';
+import { getSupabaseClient } from '@/lib/db';
 import Papa from 'papaparse';
 
 export async function POST(request: NextRequest) {
@@ -11,6 +11,18 @@ export async function POST(request: NextRequest) {
     if (!file) {
       return NextResponse.json(
         { error: 'No file provided' },
+        { status: 400 }
+      );
+    }
+
+    // Validate file name matches datasource name
+    const fileName = file.name.replace(/\.(csv|CSV)$/, '');
+    if (fileName !== datasourceName) {
+      return NextResponse.json(
+        { 
+          error: `File name must match datasource name. Expected: ${datasourceName}.csv, Got: ${file.name}`,
+          details: `Please rename your file to ${datasourceName}.csv`
+        },
         { status: 400 }
       );
     }
@@ -47,21 +59,29 @@ export async function POST(request: NextRequest) {
 
     console.log(`Parsed ${data.length} rows`);
 
-    // Get column names from first row
-    const columns = Object.keys(data[0]);
-    const allColumns = [...columns, 'upload_id', 'uploaded_by', 'uploaded_at'];
+    const supabase = getSupabaseClient();
 
-    // Prepare rows for batch insert
-    const rows = data.map(row => {
-      const values = columns.map(col => row[col] ?? null);
-      return [...values, uploadId, 'CONTI', new Date().toISOString()];
-    });
+    // Batch insert records
+    const batchSize = 1000;
+    let totalInserted = 0;
 
-    // Batch insert with Supabase
-    const totalInserted = await batchInsert(rawTable, allColumns, rows, 1000);
+    for (let i = 0; i < data.length; i += batchSize) {
+      const batch = data.slice(i, i + batchSize);
+      
+      const { error: insertError } = await supabase
+        .from(rawTable)
+        .insert(batch);
+
+      if (insertError) {
+        console.error('Insert error:', insertError);
+        throw new Error(`Failed to insert batch at row ${i}: ${insertError.message}`);
+      }
+
+      totalInserted += batch.length;
+      console.log(`Inserted: ${totalInserted}/${data.length} rows`);
+    }
 
     // Track upload in database
-    const supabase = getSupabaseClient();
     await supabase.from('upload_sessions').insert({
       upload_id: uploadId,
       datasource_name: datasourceName,
@@ -72,13 +92,13 @@ export async function POST(request: NextRequest) {
     });
 
     // Update lobby count
-    const { data: rawData } = await supabase
+    const { count } = await supabase
       .from(rawTable)
       .select('*', { count: 'exact', head: true });
 
     await supabase
       .from('data_sources')
-      .update({ lobby: rawData?.length || totalInserted })
+      .update({ lobby: count || 0 })
       .eq('datasource_name', datasourceName);
 
     return NextResponse.json({

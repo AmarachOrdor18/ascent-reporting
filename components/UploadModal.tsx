@@ -30,10 +30,19 @@ export default function UploadModal({
         setError('Please select a CSV file');
         return;
       }
+
+      // ✅ Check file name matches datasource name
+      const fileName = selectedFile.name.replace(/\.(csv|CSV)$/, '');
+      if (fileName !== datasourceName) {
+        setError(`File name must be ${datasourceName}.csv (got: ${selectedFile.name})`);
+        return;
+      }
+
       if (selectedFile.size > 100 * 1024 * 1024) {
         setError('File size must be less than 100MB');
         return;
       }
+
       setFile(selectedFile);
       setError('');
     }
@@ -55,7 +64,6 @@ export default function UploadModal({
     formData.append('datasourceName', datasourceName);
 
     try {
-      // Simulate progress (since we can't track actual upload progress easily)
       const progressInterval = setInterval(() => {
         setProgress((prev) => Math.min(prev + 10, 90));
       }, 500);
@@ -203,11 +211,16 @@ export default function UploadModal({
             </div>
           )}
 
-          {/* Info */}
+          {/* ✅ Updated Info Section */}
           <div className="bg-blue-50 border border-blue-200 rounded p-4">
             <p className="text-sm text-blue-900">
-              <strong>Important:</strong> The CSV file will be uploaded to the RAW table.
-              After upload, click "Admit" to move data to the ACTIVE table.
+              <strong>Important:</strong>
+              <br />
+              • File must be named exactly: <strong>{datasourceName}.csv</strong>
+              <br />
+              • CSV columns must match the table structure
+              <br />
+              • After upload, click "Admit" to move data to the ACTIVE table
             </p>
           </div>
         </div>

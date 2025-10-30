@@ -1,24 +1,32 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { getSupabaseClient } from '@/lib/db';
 
+// ===============================
+// GET: Fetch all active SQL views
+// ===============================
 export async function GET() {
+  const supabase = getSupabaseClient();
+
   try {
-    const result = await query(
-      `SELECT 
-        v.view_id,
-        v.view_name,
-        v.view_definition,
-        v.dataset_id,
-        d.dataset_name,
-        v.created_at,
-        v.created_by,
-        v.is_active
-      FROM sql_views v
-      LEFT JOIN data_sets d ON v.dataset_id = d.dataset_id
-      WHERE v.is_active = true
-      ORDER BY v.created_at DESC`
-    );
-    return NextResponse.json(result.rows);
+    // Fetch active views and join dataset names
+    const { data, error } = await supabase
+      .from('sql_views')
+      .select(`
+        view_id,
+        view_name,
+        view_definition,
+        dataset_id,
+        data_sets (dataset_name),
+        created_at,
+        created_by,
+        is_active
+      `)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return NextResponse.json(data || [], { status: 200 });
   } catch (error) {
     console.error('Error fetching views:', error);
     return NextResponse.json(
@@ -28,29 +36,43 @@ export async function GET() {
   }
 }
 
+// ===============================
+// POST: Create a new SQL view
+// ===============================
 export async function POST(request: Request) {
+  const supabase = getSupabaseClient();
+
   try {
     const { viewName, viewDefinition, datasetId } = await request.json();
 
-    // Create the view in the database
-    await query(viewDefinition);
-
-    // Register the view
-    await query(
-      `INSERT INTO sql_views (
-        view_name,
-        view_definition,
-        dataset_id,
-        created_by
-      )
-      VALUES ($1, $2, $3, $4)`,
-      [viewName, viewDefinition, datasetId, 'CONTI']
-    );
-
-    return NextResponse.json({
-      success: true,
-      message: 'View created successfully'
+    // 1️⃣ Create the SQL view directly via RPC (optional)
+    const { error: execError } = await supabase.rpc('exec_sql', {
+      query: viewDefinition,
     });
+
+    if (execError) throw execError;
+
+    // 2️⃣ Register metadata in sql_views table
+    const { error: insertError } = await supabase
+      .from('sql_views')
+      .insert([
+        {
+          view_name: viewName,
+          view_definition: viewDefinition,
+          dataset_id: datasetId,
+          created_by: 'CONTI',
+        },
+      ]);
+
+    if (insertError) throw insertError;
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'View created successfully',
+      },
+      { status: 201 }
+    );
   } catch (error: any) {
     console.error('Error creating view:', error);
     return NextResponse.json(

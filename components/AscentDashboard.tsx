@@ -1,16 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Upload, Download, FileSpreadsheet, RefreshCw, Plus, LogOut } from 'lucide-react';
 import CreateDataSourceModal from './CreateDataSourceModal';
 import UploadModal from './UploadModal';
 import CreateCycleModal from './CreateCycleModal';
 import ReportViewerModal from './ReportViewerModal';
-
 import toast, { Toaster } from 'react-hot-toast';
 
-export default function AscentDashboard() {
-  const [mounted, setMounted] = useState(false); // 👈 add this
+export default function AscentDashboard({ user }: { user?: any }) {
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -33,76 +34,97 @@ export default function AscentDashboard() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showCreateCycleModal, setShowCreateCycleModal] = useState(false);
   const [selectedDataSource, setSelectedDataSource] = useState('');
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
+
+  // Report viewer
   const [showReportViewer, setShowReportViewer] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<any>(null);
 
-  // Fetch data on mount and when view changes
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/signout', {
+        method: 'POST',
+      });
+      router.push('/login');
+      router.refresh();
+    } catch (error) {
+      console.error('Logout failed:', error);
+      toast.error('Logout failed. Please try again.');
+    }
+  };
+
+  const handleViewReport = (dataset: any) => {
+    setSelectedDataset(dataset);
+    setShowReportViewer(true);
+  };
+
+  const handleScreenView = async (datasourceName: string, tableType: 'RAW' | 'ACTIVE' | 'HIST' = 'ACTIVE') => {
+    try {
+      const response = await fetch(`/api/datasources/${datasourceName}/preview?table=${tableType}&limit=100`);
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error);
+      setPreviewData(result);
+      setShowPreviewModal(true);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to load preview');
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, [activeView]);
 
-    const fetchData = async () => {
+  const fetchData = async () => {
     setLoading(true);
-
     try {
-    let response: Response;
-    let data: any;
+      let response: Response;
+      let data: any;
 
-    // 🧩 Select API endpoint based on active view
-    if (activeView === 'datasources') {
+      if (activeView === 'datasources') {
         response = await fetch('/api/datasources');
-    } else if (activeView === 'datasets') {
+      } else if (activeView === 'datasets') {
         response = await fetch('/api/datasets');
-    } else if (activeView === 'cycles') {
+      } else if (activeView === 'cycles') {
         response = await fetch('/api/cycles');
-    } else {
+      } else {
         throw new Error('Invalid view selected');
-    }
+      }
 
-    // 🧠 Try parsing JSON safely (in case backend returns HTML or invalid JSON)
-    try {
+      try {
         data = await response.json();
-    } catch {
+      } catch {
         throw new Error('Invalid JSON response from server');
-    }
+      }
 
-    // 🚨 Check for server errors
-    if (!response.ok || data?.error) {
-        throw new Error(data?.error || `Failed to fetch ${activeView}`);
-    }
+      if (!response.ok || data?.error) throw new Error(data?.error || `Failed to fetch ${activeView}`);
 
-    // 🧾 Ensure the response is an array
-    const dataArray = Array.isArray(data) ? data : [];
+      const dataArray = Array.isArray(data) ? data : [];
 
-    // 🧮 Update the correct state based on the view
-    switch (activeView) {
+      switch (activeView) {
         case 'datasources':
-        setDataSources(dataArray);
-        setStats((prev) => ({ ...prev, dataSources: dataArray.length }));
-        break;
-
+          setDataSources(dataArray);
+          setStats((prev) => ({ ...prev, dataSources: dataArray.length }));
+          break;
         case 'datasets':
-        setDataSets(dataArray);
-        setStats((prev) => ({ ...prev, dataSets: dataArray.length }));
-        break;
-
+          setDataSets(dataArray);
+          setStats((prev) => ({ ...prev, dataSets: dataArray.length }));
+          break;
         case 'cycles':
-        setCycles(dataArray);
-        break;
-    }
+          setCycles(dataArray);
+          break;
+      }
     } catch (error: any) {
-    console.error('Error fetching data:', error);
-    toast.error(error.message || 'Failed to load data');
-
-    // 🧹 Prevent map errors by clearing state arrays on failure
-    if (activeView === 'datasources') setDataSources([]);
-    if (activeView === 'datasets') setDataSets([]);
-    if (activeView === 'cycles') setCycles([]);
+      console.error('Error fetching data:', error);
+      toast.error(error.message || 'Failed to load data');
+      if (activeView === 'datasources') setDataSources([]);
+      if (activeView === 'datasets') setDataSets([]);
+      if (activeView === 'cycles') setCycles([]);
     } finally {
-    setLoading(false);
+      setLoading(false);
     }
-    };
-  
+  };
 
   const handleUploadClick = (datasourceName: string) => {
     setSelectedDataSource(datasourceName);
@@ -110,9 +132,7 @@ export default function AscentDashboard() {
   };
 
   const handleAdmit = async (datasourceName: string, datasourceId: string) => {
-    if (!confirm(`Are you sure you want to admit data to ${datasourceName}?`)) {
-      return;
-    }
+    if (!confirm(`Are you sure you want to admit data to ${datasourceName}?`)) return;
 
     try {
       const response = await fetch(`/api/datasources/${datasourceId}/admit`, {
@@ -122,10 +142,7 @@ export default function AscentDashboard() {
       });
 
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error);
-      }
+      if (!response.ok) throw new Error(result.error);
 
       toast.success(result.message);
       fetchData();
@@ -139,7 +156,7 @@ export default function AscentDashboard() {
     const datasourceNames = prompt(
       'Enter comma-separated datasource names to include in this cycle (e.g., DS_EXPOSURE,DS_RETRO_EXPOSURE):'
     );
-
+    
     if (!datasourceNames) return;
 
     const dsArray = datasourceNames.split(',').map((ds) => ds.trim());
@@ -155,10 +172,7 @@ export default function AscentDashboard() {
       });
 
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error);
-      }
+      if (!response.ok) throw new Error(result.error);
 
       toast.success(result.message);
       fetchData();
@@ -189,12 +203,20 @@ export default function AscentDashboard() {
             <h1 className="text-2xl font-bold text-blue-900">ASCENT</h1>
           </div>
 
+          {/* 👇 Updated user section */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between text-sm">
-              <span className="font-semibold">CONTI CONTI</span>
-              <button className="text-gray-400 hover:text-gray-600">▼</button>
+              <span className="font-semibold">{user?.name || 'CONTI CONTI'}</span>
+              <button
+                onClick={handleLogout}
+                className="text-gray-400 hover:text-gray-600 text-xs"
+              >
+                Logout
+              </button>
             </div>
-            <div className="text-xs text-gray-500 mt-1">Operator</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {user?.role || 'Operator'}
+            </div>
           </div>
 
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -258,6 +280,7 @@ export default function AscentDashboard() {
             </button>
           </div>
         </div>
+
 
         {/* Main Content */}
         <div className="flex-1 overflow-auto">
@@ -355,11 +378,12 @@ export default function AscentDashboard() {
                         <thead>
                           <tr className="border-b border-gray-200 text-left text-sm">
                             <th className="pb-3 font-semibold">S/N</th>
-                            <th className="pb-3 font-semibold">DataSourceId</th>
-                            <th className="pb-3 font-semibold">DataSourceName</th>
+                            <th className="pb-3 font-semibold">ID</th>
+                            <th className="pb-3 font-semibold">Name</th>
                             <th className="pb-3 font-semibold">Description</th>
                             <th className="pb-3 font-semibold">Type</th>
                             <th className="pb-3 font-semibold">Lobby</th>
+                            <th className="pb-3 font-semibold">Created By</th>
                             <th className="pb-3 font-semibold">Created At</th>
                             <th className="pb-3 font-semibold">Action</th>
                           </tr>
@@ -368,29 +392,53 @@ export default function AscentDashboard() {
                           {dataSources.map((ds: any, idx) => (
                             <tr key={ds.datasource_id} className="border-b border-gray-100 bg-green-50">
                               <td className="py-4">{idx + 1}</td>
-                              <td className="py-4">{ds.datasource_id}</td>
+                              <td className="py-4 font-mono text-xs">{ds.datasource_id}</td>
                               <td className="py-4 font-medium">{ds.datasource_name}</td>
-                              <td className="py-4">{ds.datasource_description}</td>
-                              <td className="py-4">{ds.datasource_update_type}</td>
-                              <td className="py-4">{ds.lobby || 0}</td>
-                              <td className="py-4">{formatDate(ds.datasource_created_at)}</td>
+                              <td className="py-4 text-xs">{ds.datasource_description}</td>
+                              <td className="py-4">
+                                <span className={`px-2 py-1 rounded text-xs ${
+                                  ds.datasource_update_type === 'REPLACE' 
+                                    ? 'bg-blue-100 text-blue-800' 
+                                    : 'bg-green-100 text-green-800'
+                                }`}>
+                                  {ds.datasource_update_type}
+                                </span>
+                              </td>
+                              <td className="py-4">
+                                <span className={`font-semibold ${
+                                  ds.lobby > 0 ? 'text-orange-600' : 'text-gray-400'
+                                }`}>
+                                  {ds.lobby || 0}
+                                </span>
+                              </td>
+                              <td className="py-4 text-xs">{ds.created_by}</td>
+                              <td className="py-4 text-xs">{formatDate(ds.datasource_created_at)}</td>
                               <td className="py-4">
                                 <div className="flex gap-2 flex-wrap">
-                                  <button className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600">
-                                    Screen View
+                                  <button 
+                                    onClick={() => handleScreenView(ds.datasource_name, 'ACTIVE')}
+                                    className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                                  >
+                                    View
                                   </button>
-                                  <button className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600">
+                                  <button 
+                                    onClick={() => handleScreenView(ds.datasource_name, 'HIST')}
+                                    className="px-3 py-1 bg-purple-500 text-white rounded text-xs hover:bg-purple-600"
+                                  >
                                     History
                                   </button>
                                   <button
                                     onClick={() => handleUploadClick(ds.datasource_name)}
-                                    className="px-3 py-1 bg-purple-500 text-white rounded text-xs hover:bg-purple-600"
+                                    className="px-3 py-1 bg-indigo-500 text-white rounded text-xs hover:bg-indigo-600"
                                   >
                                     Upload
                                   </button>
                                   {ds.lobby > 0 && (
                                     <>
-                                      <button className="px-3 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600">
+                                      <button 
+                                        onClick={() => handleScreenView(ds.datasource_name, 'RAW')}
+                                        className="px-3 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600"
+                                      >
                                         Lobby ({ds.lobby})
                                       </button>
                                       <button
@@ -420,7 +468,7 @@ export default function AscentDashboard() {
                       <div className="text-center py-8 text-gray-500">
                         No data sets found.
                       </div>
-                    ) : (
+                        ) : (
                       <table className="w-full">
                         <thead>
                           <tr className="border-b border-gray-200 text-left text-sm">
@@ -442,11 +490,17 @@ export default function AscentDashboard() {
                               <td className="py-4">{formatDate(ds.dataset_updated_at)}</td>
                               <td className="py-4">
                                 <div className="flex gap-2">
+                                  <button 
+                                    onClick={() => handleViewReport(ds)}
+                                    className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                                  >
+                                    View Report
+                                  </button>
                                   <button className="px-3 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600">
                                     Design
                                   </button>
                                   <button className="px-3 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600">
-                                    Screen View
+                                    Edit
                                   </button>
                                 </div>
                               </td>
@@ -560,6 +614,18 @@ export default function AscentDashboard() {
           toast.success('Cycle created successfully!');
         }}
       />
+
+      {selectedDataset && (
+        <ReportViewerModal
+          isOpen={showReportViewer}
+          onClose={() => {
+            setShowReportViewer(false);
+            setSelectedDataset(null);
+          }}
+          datasetId={selectedDataset.dataset_id}
+          datasetName={selectedDataset.dataset_name}
+        />
+      )}
     </>
   );
 }
