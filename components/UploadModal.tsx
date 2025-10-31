@@ -64,9 +64,16 @@ export default function UploadModal({
     formData.append('datasourceName', datasourceName);
 
     try {
+      // Simulate progress (since we can't track actual upload progress easily)
       const progressInterval = setInterval(() => {
         setProgress((prev) => Math.min(prev + 10, 90));
       }, 500);
+
+      console.log('Starting upload...', {
+        fileName: file.name,
+        fileSize: file.size,
+        datasourceName
+      });
 
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -76,19 +83,31 @@ export default function UploadModal({
       clearInterval(progressInterval);
       setProgress(100);
 
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON response:', text.substring(0, 200));
+        throw new Error('Server returned an invalid response. Check console for details.');
+      }
+
       const result = await response.json();
 
       if (!response.ok) {
         throw new Error(result.error || 'Upload failed');
       }
 
+      console.log('Upload successful:', result);
+
       setSuccess(`Successfully uploaded ${result.rowCount} rows!`);
       setTimeout(() => {
         onSuccess();
         handleClose();
       }, 2000);
+      
     } catch (err: any) {
-      setError(err.message);
+      console.error('Upload error:', err);
+      setError(err.message || 'Upload failed. Please try again.');
       setProgress(0);
     } finally {
       setLoading(false);
