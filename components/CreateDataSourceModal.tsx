@@ -23,7 +23,6 @@ export default function CreateDataSourceModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Example template
   const exampleQuery = `CREATE TABLE example_table (
     policy_number VARCHAR(100),
     insured_name VARCHAR(255),
@@ -32,11 +31,20 @@ export default function CreateDataSourceModal({
     status VARCHAR(50)
 );`;
 
+  const resetForm = () => {
+    setFormData({
+      datasource_name: '',
+      datasource_description: '',
+      datasource_update_type: 'REPLACE',
+    });
+    setSqlQuery('');
+    setError('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Validation
     if (!formData.datasource_name.startsWith('DS_')) {
       setError('Datasource name must start with DS_');
       return;
@@ -47,7 +55,6 @@ export default function CreateDataSourceModal({
       return;
     }
 
-    // Validate SQL starts with CREATE TABLE
     if (!sqlQuery.trim().toUpperCase().startsWith('CREATE TABLE')) {
       setError('Query must start with CREATE TABLE');
       return;
@@ -66,29 +73,16 @@ export default function CreateDataSourceModal({
       });
 
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create datasource');
-      }
+      if (!response.ok) throw new Error(result.error || 'Failed to create datasource');
 
       onSuccess();
-      onClose();
       resetForm();
+      onClose();
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      datasource_name: '',
-      datasource_description: '',
-      datasource_update_type: 'REPLACE',
-    });
-    setSqlQuery('');
-    setError('');
   };
 
   const loadExample = () => {
@@ -100,12 +94,13 @@ export default function CreateDataSourceModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Create Data Source</h2>
             <p className="text-sm text-gray-600 mt-1">
-              Define table structure using SQL CREATE TABLE syntax
+              Define your table structure using a SQL CREATE TABLE query
             </p>
           </div>
           <button
@@ -117,8 +112,9 @@ export default function CreateDataSourceModal({
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+        {/* Form (Footer moved inside) */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-y-auto p-6">
+          {/* Error */}
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded flex items-start gap-3">
               <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
@@ -128,6 +124,7 @@ export default function CreateDataSourceModal({
 
           {/* Basic Info */}
           <div className="space-y-4 mb-6">
+            {/* Name */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Datasource Name * (must start with DS_)
@@ -143,13 +140,14 @@ export default function CreateDataSourceModal({
                   })
                 }
                 className="w-full px-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="e.g., DS_EXPOSURE"
+                placeholder="e.g., DS_EXCHANGE_RATE"
               />
               <p className="text-xs text-gray-500 mt-1">
-                This will be the prefix for your RAW, ACTIVE, and HIST tables
+                This will be the prefix for RAW, ACTIVE, and HIST tables
               </p>
             </div>
 
+            {/* Description */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Description
@@ -168,6 +166,7 @@ export default function CreateDataSourceModal({
               />
             </div>
 
+            {/* Update Type */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Update Type
@@ -188,8 +187,8 @@ export default function CreateDataSourceModal({
             </div>
           </div>
 
-          {/* SQL Query Editor */}
-          <div>
+          {/* SQL Query */}
+          <div className="flex-1">
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-semibold text-gray-700">
                 SQL CREATE TABLE Query *
@@ -207,47 +206,47 @@ export default function CreateDataSourceModal({
               value={sqlQuery}
               onChange={(e) => setSqlQuery(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-              rows={12}
+              rows={10}
               placeholder={exampleQuery}
             />
           </div>
 
-          {/* Important Notes */}
+          {/* Notes */}
           <div className="mt-4 bg-blue-50 border border-blue-200 rounded p-4">
             <div className="flex items-start gap-3">
               <Info className="text-blue-600 flex-shrink-0" size={20} />
               <div className="text-sm text-blue-900">
                 <p className="font-semibold mb-2">Important Notes:</p>
                 <ul className="list-disc list-inside space-y-1 text-xs">
-                  <li>Only define your business columns - system columns (id, upload_id, uploaded_at, uploaded_by) will be added automatically</li>
-                  <li>The table name in your query will be ignored - we'll use your datasource name</li>
-                  <li>Upload files must be named exactly as the datasource (e.g., DS_EXPOSURE.csv)</li>
-                  <li>Three tables will be created: DS_NAME_RAW, DS_NAME_ACTIVE, DS_NAME_HIST</li>
+                  <li>Only define your business columns — system columns are added automatically</li>
+                  <li>The table name in your query will be ignored; the datasource name will be used</li>
+                  <li>Upload files must be named exactly as the datasource (e.g., DS_EXCHANGE_RATE.csv)</li>
+                  <li>Three tables will be created: RAW, ACTIVE, and HIST</li>
                   <li>Supported data types: VARCHAR(n), TEXT, INT, BIGINT, DECIMAL(p,s), DATE, TIMESTAMP, BOOLEAN</li>
                 </ul>
               </div>
             </div>
           </div>
-        </form>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-          >
-            {loading ? 'Creating...' : 'Create Data Source'}
-          </button>
-        </div>
+          {/* Footer (inside form now ✅) */}
+          <div className="flex items-center justify-end gap-3 border-t border-gray-200 pt-4 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="px-6 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {loading ? 'Creating...' : 'Create Data Source'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
