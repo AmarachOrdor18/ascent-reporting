@@ -38,8 +38,8 @@ export default function UploadModal({
         return;
       }
 
-      if (selectedFile.size > 100 * 1024 * 1024) {
-        setError('File size must be less than 100MB');
+      if (selectedFile.size > 200 * 1024 * 1024) {
+        setError('File size must be less than 200MB');
         return;
       }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Download, RefreshCw } from 'lucide-react';
 
 interface ReportViewerModalProps {
@@ -19,21 +19,41 @@ export default function ReportViewerModal({
   const [data, setData] = useState<any[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [metadata, setMetadata] = useState<any>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastRowRef = useCallback((node: HTMLTableRowElement) => {
+    if (loadingMore) return;
+    if (observer.current) observer.current.disconnect();
+    
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        loadMore();
+      }
+    });
+    
+    if (node) observer.current.observe(node);
+  }, [loadingMore, hasMore]);
 
   useEffect(() => {
     if (isOpen && datasetId) {
-      fetchReport();
+      fetchReport(1);
     }
   }, [isOpen, datasetId]);
 
-  const fetchReport = async () => {
-    setLoading(true);
+  const fetchReport = async (pageNum: number) => {
+    const isInitial = pageNum === 1;
+    isInitial ? setLoading(true) : setLoadingMore(true);
     setError('');
 
     try {
-      const response = await fetch(`/api/datasets/${datasetId}/query`);
+      const response = await fetch(
+        `/api/datasets/${datasetId}/query?page=${pageNum}&limit=1000`
+      );
       const result = await response.json();
 
       if (!response.ok) {
@@ -41,19 +61,33 @@ export default function ReportViewerModal({
       }
 
       if (result.data && result.data.length > 0) {
-        // Extract columns from first row
-        const firstRow = result.data[0].result || result.data[0];
-        setColumns(Object.keys(firstRow));
-        setData(result.data.map((row: any) => row.result || row));
+        const firstRow = result.data[0];
+        
+        if (isInitial) {
+          setColumns(Object.keys(firstRow));
+          setData(result.data);
+        } else {
+          setData(prev => [...prev, ...result.data]);
+        }
+        
         setMetadata(result);
-      } else {
+        setHasMore(result.pagination.hasMore);
+        setPage(pageNum);
+      } else if (isInitial) {
         setData([]);
         setColumns([]);
+        setHasMore(false);
       }
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      isInitial ? setLoading(false) : setLoadingMore(false);
+    }
+  };
+
+  const loadMore = () => {
+    if (!loadingMore && hasMore) {
+      fetchReport(page + 1);
     }
   };
 
@@ -108,14 +142,16 @@ export default function ReportViewerModal({
             </p>
             {metadata && (
               <p className="text-xs text-gray-500 mt-1">
-                Generated: {new Date(metadata.generatedAt).toLocaleString()} •{' '}
-                {metadata.rowCount} rows • View: {metadata.viewName}
+                Showing: {data.length.toLocaleString()} rows
+                {metadata.pagination.total > 0 && 
+                  ` of ${metadata.pagination.total.toLocaleString()} total`}
+                {hasMore && ' • Scroll to load more'}
               </p>
             )}
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={fetchReport}
+              onClick={() => fetchReport(1)}
               disabled={loading}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2 text-sm disabled:opacity-50"
             >
@@ -157,16 +193,13 @@ export default function ReportViewerModal({
           {!loading && !error && data.length === 0 && (
             <div className="text-center py-12 text-gray-500">
               <p>No data available for this report.</p>
-              <p className="text-sm mt-2">
-                Make sure you have admitted data to the active tables.
-              </p>
             </div>
           )}
 
           {!loading && !error && data.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-sm">
-                <thead className="sticky top-0 bg-gray-100">
+                <thead className="sticky top-0 bg-gray-100 z-10">
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold text-gray-700 border bg-gray-100">
                       #
@@ -183,7 +216,11 @@ export default function ReportViewerModal({
                 </thead>
                 <tbody>
                   {data.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50">
+                    <tr 
+                      key={idx} 
+                      className="hover:bg-gray-50"
+                      ref={idx === data.length - 1 ? lastRowRef : null}
+                    >
                       <td className="px-4 py-2 border text-gray-500 font-mono text-xs">
                         {idx + 1}
                       </td>
@@ -199,19 +236,22 @@ export default function ReportViewerModal({
                   ))}
                 </tbody>
               </table>
+              
+              {loadingMore && (
+                <div className="text-center py-4">
+                  <RefreshCw className="animate-spin mx-auto text-blue-600" size={24} />
+                  <p className="text-sm text-gray-600 mt-2">Loading more...</p>
+                </div>
+              )}
+              
+              {!hasMore && data.length > 0 && (
+                <div className="text-center py-4 text-gray-500 text-sm">
+                  All {data.length.toLocaleString()} rows loaded
+                </div>
+              )}
             </div>
           )}
         </div>
-
-        {/* Footer Stats */}
-        {!loading && data.length > 0 && (
-          <div className="p-4 border-t border-gray-200 bg-gray-50">
-            <div className="flex items-center justify-between text-sm text-gray-600">
-              <span>Showing {data.length} rows</span>
-              <span>{columns.length} columns</span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

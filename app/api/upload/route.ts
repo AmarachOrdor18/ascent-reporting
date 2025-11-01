@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     console.log('Table exists, starting batch insert...');
 
     // Batch insert records
-    const batchSize = 1000;
+    const batchSize = 5000;
     let totalInserted = 0;
 
     for (let i = 0; i < data.length; i += batchSize) {
